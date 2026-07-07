@@ -1,0 +1,38 @@
+[Unit]
+Description=MOHAAShield 24/7 flight recorder (bounded pcap ring on UDP 12203)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+EnvironmentFile=/etc/mohaashield/flightrecorder.conf
+ExecStart=/opt/mohaashield/flightrecorder-run.sh
+Restart=on-failure
+RestartSec=5
+
+# Run unprivileged with only the capability packet capture needs.
+User=mohaashield
+Group=mohaashield
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+NoNewPrivileges=yes
+
+# Sandboxing / hardening.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mohaashield/pcap
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_PACKET AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+# Resource caps so the recorder can never starve the game server.
+MemoryMax=128M
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
