@@ -19,8 +19,11 @@ OUTDIR=/var/lib/mohaashield/pcap
 RING_FILESIZE_KB=32768
 RING_FILES=64
 
-# Preserved (frozen) windows to keep. Each is a full copy of the ring, so total
-# incidents disk = up to MAX_INCIDENTS * (RING_FILESIZE_KB*RING_FILES). 5 * ~2 GB = ~10 GB.
+# A freeze copies only the newest FREEZE_FILES ring files (not the whole ring) at idle I/O
+# priority, so it can't stall the game. 8 * 32 MB = ~256 MB per freeze.
+FREEZE_FILES=8
+# Preserved (frozen) windows to keep. Total incidents disk = up to
+# MAX_INCIDENTS * FREEZE_FILES * RING_FILESIZE_KB. 5 * 8 * 32 MB = ~1.3 GB.
 MAX_INCIDENTS=5
 
 # --- attack-watch (auto-freeze) ---
