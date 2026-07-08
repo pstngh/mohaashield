@@ -45,11 +45,13 @@ sudo systemctl enable --now mohaashield-flightrecorder
 # after an attack:  sudo /opt/mohaashield/freeze.sh <tag>
 ```
 
-## What's next
+## Engine work (Phase 2 / 3)
 
-Phase 2 (engine telemetry) and Phase 3 (shadow-mode getstatus guard) are OpenMoHAA source
-patches — deferred until the build/deploy model is confirmed. See
-`docs/architecture-and-roadmap.md`.
+Layer-3 changes ship as **anchor-based implementation specs** in `patches/` (the operator
+runs a self-compiled, customized `omohaaded` fork). Start with `patches/README.md`:
+- `patches/phase2-telemetry.md` — aggregated connectionless telemetry (observe-only).
+- `patches/phase3-getstatus-shadow-guard.md` — shadow getstatus gate + allocator fix (zero
+  drops by default), applied after Phase 2 data review.
 
 ## Confirmed historical attack
 

@@ -57,7 +57,8 @@ patching the engine itself.
 1. **First deploy = current production box now** (capture real attacks before the OVH
    migration; if it isn't Debian, tell me its OS and Phase 0 tooling adjusts). Re-run on OVH
    after migration.
-2. **Build model = self-compiled `omohaaded`** from source, shipped as small patches + a
-   build script pinned to a known-good upstream commit (required for Layer 3).
+2. **Build model = self-compiled `omohaaded`** — the operator maintains a customized fork,
+   so Layer-3 work ships as **anchor-based implementation specs** (`patches/`) their own
+   session applies to that fork, not line-based diffs against upstream.
 3. **v1 extras = bucket-allocator cursor fix only.** OVH Edge firewall allowlist and OS
    sysctls are an optional "Phase 0.5", not core v1.
