@@ -27,6 +27,31 @@ MOHAA build — by **one direction byte**, then the command line. `SV_Connection
 The dispatcher has **no length/flood guard**; per-command `strlen(Cmd_Argv(1)) > 128`
 checks live *inside* the handlers, *after* the rate limiters.
 
+### Observed wire layout (live capture 2026-07-08)
+
+A real inbound `getstatus` from a server browser was captured on the production box:
+
+```
+ff ff ff ff | 02 | 67 65 74 73 74 61 74 75 73        (14-byte UDP payload)
+ -1 marker    dir  "g  e  t  s  t  a  t  u  s"        (no trailing newline)
+```
+
+Legit OOB = 4-byte marker + **1 direction byte (`0x02`)** + command → command read at
+`data[5]`, matching the parser's `MSG_ReadLong` + `MSG_ReadByte` skip. It produced a 975-byte
+`statusResponse` (~70× payload amplification; the outbound bucket caps this to ~10/s ≈
+~80 kbps, so it is **not** an abusable amplifier).
+
+**Consequence for the confirmed attack.** The NFO attack shape
+`ff ff ff ff "getstatus" 0a` has the command at `data[4]`, **no** direction byte, trailing
+newline. Parsed from `data[5]` it tokenizes to **`etstatus`** → the **unknown/bad
+connectionless** branch. So the historical flood **never reaches `SVC_Status`**, never hits
+the O(16384) bucket scan, and sends no reply — its only cost is unthrottled inbound
+`MSG_ReadStringLine` + `Cmd_TokenizeString` + `Q_stricmp` chain in the single-threaded loop.
+*(Inference from the verified parser + this capture + the NFO signature; Phase 2's `unknown`
+counter + `unk_sample` will confirm empirically during the next attack — expect `etstatus`.)*
+This is why the primary Phase 3 guard belongs at the **top of `SV_ConnectionlessPacket`**, not
+only in `SVC_Status`.
+
 ## The leaky-bucket rate limiter (`code/server/sv_main.c`)
 
 Clock is **`Sys_Milliseconds()`** (not `svs.time`). Structures:

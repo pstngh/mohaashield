@@ -23,20 +23,36 @@ maintains your fork can implement it correctly against your actual source.
   after data review.
 - Bounded memory only. No new unbounded maps/queues.
 
-## Important open question the telemetry will resolve
+## Where the attack lands (largely resolved by live capture 2026-07-08)
 
 The dispatcher (`SV_ConnectionlessPacket`) reads the command at **`data[5]`** — it skips the
-4-byte `-1` marker **plus a 1-byte direction byte**. A legit MOHAA `getstatus` therefore
-looks like `FF FF FF FF <dir> "getstatus\n"` (command at `data[5]`). But the confirmed
-historical attack was **14 bytes**: `FF FF FF FF "getstatus\n"` — command at `data[4]`, **no
-direction byte**. Parsed by this dispatcher, that packet's command token becomes `"etstatus"`
-→ the **unknown/bad** branch, *not* `SVC_Status`.
+4-byte `-1` marker **plus a 1-byte direction byte**. A **live inbound `getstatus` was
+captured** and confirms the legit shape:
 
-Consequences we must not guess about:
-- If the flood really parses as **unknown**, it never reaches the per-IP bucket scan, and a
-  `SVC_Status`-only guard would miss it.
-- If your attacker's tool includes the direction byte, it parses as **getstatus** and does
-  hit the scan.
+```
+ff ff ff ff | 02 | 67 65 74 73 74 61 74 75 73     (14 bytes)
+ -1 marker    dir  "getstatus"  (no newline)
+```
+
+So legit OOB = marker + **direction byte `0x02`** + command at `data[5]` → it reaches
+`SVC_Status` and gets a 975-byte reply (~70× amplification, but the outbound bucket caps it
+to ~10/s ≈ ~80 kbps → non-abusable).
+
+The confirmed historical **attack** shape is different: `ff ff ff ff "getstatus" 0a` —
+command at `data[4]`, **no** direction byte, trailing newline. Fed through the same parser
+(which reads from `data[5]`) the token becomes **`etstatus`** → the **unknown/bad
+connectionless branch**. So the attack:
+- never reaches `SVC_Status`, never hits the per-IP O(16384) bucket scan, and sends no reply;
+- costs only inbound CPU — `MSG_ReadStringLine` + `Cmd_TokenizeString` + the `Q_stricmp`
+  chain — **unthrottled**, in the single-threaded server loop.
+
+**Therefore a `SVC_Status`-only guard would miss the real attack.** The primary Phase 3 guard
+belongs **early in `SV_ConnectionlessPacket` (before tokenize/dispatch)** so it protects the
+game loop regardless of which command the flood (mis)parses to — see
+`phase3-getstatus-shadow-guard.md`. This is an inference from the verified parser + the live
+capture + the NFO signature; **Phase 2's `unknown` counter + `unk_sample` will confirm it
+empirically during the next attack** (expect `unk_sample=etstatus`). A smarter attacker who
+adds the `0x02` byte would instead show up under `getstatus` — Phase 2 sees both.
 
 Phase 2 counts **both** `getstatus` and `unknown`, and **samples the unknown command token**,
 so a single attack window tells us exactly which path the flood takes — and therefore where

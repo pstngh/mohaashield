@@ -1,7 +1,59 @@
-# Phase 3 — Shadow-mode getstatus flood guard + allocator hardening
+# Phase 3 — Shadow-mode OOB flood guard + allocator hardening
+
+> **DESIGN UPDATE (live capture 2026-07-08).** A real `getstatus` was captured and confirms
+> legit OOB carries a direction byte (`ff ff ff ff 02 "getstatus"`, command at `data[5]`).
+> The confirmed **attack** shape (`ff ff ff ff "getstatus" 0a`, command at `data[4]`) misparses
+> to the **unknown/bad connectionless branch** — so it never reaches `SVC_Status`. A
+> `SVC_Status`-only gate (3a below) would therefore **miss the real attack**. The recommended
+> primary guard is now **(3a′) a global OOB gate at the top of `SV_ConnectionlessPacket`,
+> before tokenize/dispatch** — it protects the single-threaded server loop against *any*
+> connectionless flood (getstatus, misparsed `etstatus`, getinfo, connect) with one cheap
+> check, and never touches sequenced player traffic (that path is handled earlier in
+> `SV_PacketEvent`). Keep 3a as a narrower add-on if you want per-command shaping. **Wait for
+> Phase 2 data to set the threshold and confirm the attack shape (`unk_sample=etstatus`) before
+> implementing.**
 
 **Do this only after Phase 2 is running** and you've seen a few windows (ideally one real
-attack), so the Phase-2 data tells us whether the flood arrives as `getstatus` or `unknown`.
+attack), so the Phase-2 data tells us whether the flood arrives as `getstatus` or `unknown`,
+and what the legit *aggregate* OOB rate is.
+
+## 3a′ — global OOB gate at the top of the dispatcher (recommended primary)
+
+Place a single cheap leaky-bucket check at the **start of `SV_ConnectionlessPacket`**, right
+after the `MSG_ReadLong`/`MSG_ReadByte` header skips and **before** `MSG_ReadStringLine` +
+`Cmd_TokenizeString` (the expensive part). Cvars `sv_shieldOOB` (0 off / 1 shadow / 2 enforce,
+default 1) + `sv_shieldOOBBurst` / `sv_shieldOOBPeriodMs`.
+
+```c
+    /* after: MSG_ReadLong(msg); MSG_ReadByte(msg);  — before MSG_ReadStringLine/Cmd_Tokenize */
+    if ( sv_shieldOOB && sv_shieldOOB->integer ) {
+        static leakyBucket_t oobInboundBucket;
+        int burst  = sv_shieldOOBBurst->integer;
+        int period = sv_shieldOOBPeriodMs->integer;
+        if ( period < 1 ) period = 1;          /* SVC_RateLimit divides by period */
+        if ( burst  < 1 ) burst  = 1;
+        if ( burst  > 127 ) burst = 127;       /* leakyBucket_t.burst is signed char */
+        if ( SVC_RateLimit( &oobInboundBucket, burst, period ) ) {
+            if ( sv_shieldOOB->integer >= 2 ) { /* ENFORCE: drop before the expensive tokenize */
+                sh_stats.oob_gate_drop++;
+                return;
+            } else {                            /* SHADOW: count, then proceed as stock */
+                sh_stats.oob_gate_would_drop++;
+            }
+        }
+    }
+```
+
+Add `oob_gate_drop` / `oob_gate_would_drop` to the Phase 2 `sh_stats` struct. Threshold: set
+`burst`/`period` from the Phase-2 **aggregate** legit OOB peak (getstatus+getinfo+getchallenge
++connect combined, which spikes during join bursts), then ~5–10×. In enforce mode this drops
+*all* OOB during a flood — status queries and new joins fail, **but connected players are
+untouched** (sequenced path). This is the invariant-safe, highest-CPU-relief placement.
+
+The `SVC_Status`-specific gate below (3a) remains valid as a *narrower* control if you prefer
+to only shape true `getstatus`; it does not, by itself, stop the misparsed-`etstatus` attack.
+
+---
 
 Two changes, both **non-dropping by default**:
 - **(3a) Global inbound getstatus gate** — a single cheap leaky bucket checked *before* the

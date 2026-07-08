@@ -33,7 +33,10 @@ typedef struct {
 
     /* getstatus outcome (mirror to _info/_challenge structs if you want them too) */
     uint64_t getstatus_perip_drop, getstatus_outbound_drop, getstatus_passed;
-    uint64_t getstatus_global_would_drop, getstatus_global_drop;  /* filled by Phase 3 */
+    uint64_t getstatus_global_would_drop, getstatus_global_drop;  /* filled by Phase 3 (3a) */
+
+    /* global OOB gate at the dispatcher top — filled by Phase 3 (3a', recommended) */
+    uint64_t oob_gate_would_drop, oob_gate_drop;
 
     /* churn proxy: fresh per-IP bucket allocations (new sources hitting the limiter) */
     uint64_t new_source_allocs;
