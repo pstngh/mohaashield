@@ -1,11 +1,20 @@
 # MOHAAShield flight recorder config.
 # Copy to /etc/mohaashield/flightrecorder.conf and set IFACE from Phase 0 recon.
+# Keep comments on their OWN lines (values are used verbatim).
 
-IFACE=ens3                # <-- your public interface (see host/phase0/recon.sh output)
-PORT=12203                # MOHAA UDP port
-SNAPLEN=128               # bytes/packet: enough for IP+UDP + MOHAA OOB command + seq/qport
+# Public interface (see host/phase0/recon.sh output), e.g. ens3
+IFACE=ens3
+
+# MOHAA UDP port
+PORT=12203
+
+# Bytes/packet captured: enough for IP+UDP + MOHAA OOB command + seq/qport
+SNAPLEN=128
+
+# Where ring files are written
 OUTDIR=/var/lib/mohaashield/pcap
 
 # Bounded ring buffer. Total on-disk cap = RING_FILESIZE_KB * RING_FILES.
-RING_FILESIZE_KB=32768    # 32 MB per file
-RING_FILES=64             # ring depth  ->  ~2 GB total cap
+# 32768 KB/file * 64 files = ~2 GB.
+RING_FILESIZE_KB=32768
+RING_FILES=64

@@ -5,7 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=exec
-EnvironmentFile=/etc/mohaashield/flightrecorder.conf
+# Config is sourced by the launcher (robust to inline comments); /etc stays readable
+# under ProtectSystem=strict.
 ExecStart=/opt/mohaashield/flightrecorder-run.sh
 Restart=on-failure
 RestartSec=5

@@ -3,6 +3,11 @@
 # Always-on, bounded pcap ring of UDP 12203 traffic. Captures only; drops nothing.
 set -euo pipefail
 
+# Load config by SOURCING it (bash strips inline "# comments" correctly, unlike
+# systemd's EnvironmentFile= which would fold them into the values).
+CONF="${FLIGHTRECORDER_CONF:-/etc/mohaashield/flightrecorder.conf}"
+[ -r "$CONF" ] && . "$CONF"
+
 : "${IFACE:?set IFACE in /etc/mohaashield/flightrecorder.conf}"
 PORT="${PORT:-12203}"
 SNAPLEN="${SNAPLEN:-128}"
