@@ -27,8 +27,9 @@ RestrictNamespaces=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
 
-# Resource caps so the watcher can never starve the game server.
-MemoryMax=64M
+# Low priority only. NO hard MemoryMax: freeze.sh copies the ~2 GB ring, and that file
+# page cache would trip a cgroup OOM (it did). The watcher's own RSS is a few MB and the
+# copy's cache is reclaimable, so an explicit cap only causes OOM-kills.
 Nice=10
 
 [Install]

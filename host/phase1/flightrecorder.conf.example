@@ -25,11 +25,13 @@ MAX_INCIDENTS=5
 
 # --- attack-watch (auto-freeze) ---
 # Sensitive on purpose: a false CAPTURE trigger is fine, it only preserves pcap.
-# Sample period, seconds.
+# Edge-triggered: freezes ONCE per attack, re-arms after calm, no re-freeze storm.
 WATCH_INTERVAL=2
-# Interface RX packets/sec above this preserves the ring (normal peak ~1200 pps here).
+# Interface RX packets/sec above this = "attack" (normal peak here is ~1000-4000 pps).
 WATCH_PPS_TRIGGER=4000
 # Any NIC drop increase (rx_dropped/missed/fifo) over a sample also triggers.
 WATCH_DROP_TRIGGER=1
-# Minimum seconds between auto-freezes, so one attack can't fill the disk.
-WATCH_COOLDOWN=300
+# Re-arm only after traffic has been below the trigger this many seconds (attack ended).
+WATCH_REARM_QUIET=60
+# Re-snapshot a still-ongoing attack at most this often (seconds).
+WATCH_MAX_HOLD=1800

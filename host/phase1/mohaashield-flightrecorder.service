@@ -31,8 +31,9 @@ RestrictNamespaces=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
 
-# Resource caps so the recorder can never starve the game server.
-MemoryMax=128M
+# Low priority only. NO hard MemoryMax: dumpcap's pcap write cache is reclaimable, and a
+# hard cap just forces constant reclaim (memory.events hit 'max' ~19k times) and risks
+# capture stalls under a flood. dumpcap's own RSS is a few MB.
 Nice=5
 
 [Install]
