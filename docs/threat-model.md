@@ -14,8 +14,10 @@ facts. See `openmohaa-source-analysis.md` for the code behind each claim.
    note in `openmohaa-source-analysis.md`. **Whether any real attack on this box hits this
    path is unverified** until a capture shows it.
 2. **`connect` is un-throttled and is the heaviest pre-auth path** (Huffman decode +
-   userinfo parsing + 2048-entry challenge scan). The likely pivot target once `getstatus`
-   is gated.
+   userinfo parsing + 2048-entry challenge scan). **CONFIRMED as the live attack vector on
+   the OVH box (2026-07-08): a connect flood, 88,230 connect packets = 75% of inbound OOB
+   from ~17 sources — see `incidents/2026-07-08-connect-flood.md`.** This is the priority fix
+   (the rate-limited commands held; only un-throttled `connect` ran away).
 3. **Sequenced-unknown-source → OOB `disconnect` reflection**, un-throttled. Low
    amplification but lets the box be used as a weak reflector and forces outbound PPS/CPU.
 
