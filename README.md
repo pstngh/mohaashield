@@ -25,25 +25,36 @@ docs/
   openmohaa-source-analysis.md   verified engine internals (rate limiter, dispatch, thresholds)
   threat-model.md                classified surfaces, safety invariants, threshold reasoning
 host/
+  setup.sh                       one-shot orchestrator (deps + recorder + optional game svc / CPU isolation)
   phase0/recon.sh                READ-ONLY: iface/driver/kernel/XDP capability + sanity capture
-  phase1/                        24/7 dumpcap flight recorder (bounded ring, hardened systemd)
+  phase1/                        24/7 dumpcap flight recorder + auto-freeze watcher (hardened systemd)
+  systemd/                       run omohaaded as a supervised service pinned to a core
+  cpu-isolation/                 reserve a core for the game (isolcpus + systemd affinity)
+  nftables/                      conntrack-bypass helper for the game ports
 ```
 
-## Quick start (Phase 0 — read-only, changes nothing)
+## Set up a new Debian/Ubuntu box (one command)
 
 ```bash
-sudo apt update && sudo apt install -y tcpdump tshark ethtool
-sudo bash host/phase0/recon.sh            # note the interface name + driver it reports
+sudo apt install -y git && git clone -b claude/mohaashield-ddos-protection-87p5ne \
+  https://github.com/pstngh/mohaashield.git && cd mohaashield
+
+# recorder + watcher only (safe on any box):
+sudo bash host/setup.sh
+
+# or the full game-box stack (adds systemd game service + CPU isolation):
+sudo bash host/setup.sh --all --game-user debian --game-dir /home/debian/mohaa
 ```
 
-Then stand up the always-on flight recorder (Phase 1):
+`setup.sh` auto-detects the interface, installs deps, writes `/etc/mohaashield/`, and enables
+the services. `--all` also installs the `mohaa.service` (pinned to CPU 1) and CPU isolation
+(**one reboot** applies it). Flags: `--iface`, `--ports`, `--game-user/-dir/-bin`, `--cpu`, `-y`.
+Re-runnable and idempotent. Options without `--all` install just the recorder.
 
-```bash
-sudo bash host/phase1/install.sh
-sudo nano /etc/mohaashield/flightrecorder.conf     # set IFACE from Phase 0
-sudo systemctl enable --now mohaashield-flightrecorder
-# after an attack:  sudo /opt/mohaashield/freeze.sh <tag>
-```
+The firewall/conntrack pieces are intentionally **not** auto-applied (a policy-drop ruleset can
+lock you out of a remote box) — apply those deliberately (`host/nftables/add-notrack.sh`,
+`docs/host-environment.md`). First-time recon is still available read-only:
+`sudo bash host/phase0/recon.sh`. After an attack: `sudo /opt/mohaashield/freeze.sh <tag>`.
 
 ## Engine work (Phase 2 / 3)
 

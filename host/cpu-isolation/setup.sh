@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
-# MOHAAShield — reserve CPU 1 for the game server.
+# MOHAAShield — reserve a CPU core for the game server (default CPU 1).
 #
-# Isolates CPU 1 so the scheduler, IRQs, timers and RCU stay on CPU 0, and ONLY an
-# explicitly-pinned process (omohaaded via `taskset -c 1`) runs on CPU 1. Everything else
-# (Linux, MOHAAShield, SSH, filtering) runs on CPU 0.
+# Isolates the core so the scheduler, IRQs, timers and RCU stay on CPU 0, and ONLY an
+# explicitly-pinned process (omohaaded via systemd CPUAffinity or `taskset -c N`) runs on it.
+# Everything else (Linux, MOHAAShield, SSH, filtering) runs on CPU 0.
 #
-# This writes config only. It is idempotent, backs up what it edits, and requires ONE
-# reboot to take effect. It does NOT touch your crontab — you add `taskset -c 1` to the
-# omohaaded launch yourself (see the printed instructions).
+# Config only. Idempotent, backs up what it edits, requires ONE reboot. Does not touch how
+# omohaaded is launched (the systemd unit's CPUAffinity, or a taskset wrapper, does the pin).
+#   Override the core with:  CPU=1 sudo bash setup.sh
 set -euo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "run as root: sudo bash $0"; exit 1; }
 
+CPU="${CPU:-1}"
 NCPU="$(nproc)"
 [ "$NCPU" -ge 2 ] || { echo "need >= 2 CPUs, found $NCPU"; exit 1; }
+[ "$CPU" -ge 1 ] && [ "$CPU" -lt "$NCPU" ] || { echo "CPU must be 1..$((NCPU-1)), got $CPU"; exit 1; }
 
-ISOL_PARAMS="isolcpus=1 nohz_full=1 rcu_nocbs=1 irqaffinity=0"
+ISOL_PARAMS="isolcpus=${CPU} nohz_full=${CPU} rcu_nocbs=${CPU} irqaffinity=0"
 
 echo "current cmdline: $(cat /proc/cmdline)"
 
@@ -40,9 +42,8 @@ else
 fi
 update-grub 2>/dev/null || grub-mkconfig -o /boot/grub/grub.cfg
 
-# 2) systemd: default every managed process to CPU 0 (soft affinity, so taskset can still
-#    place omohaaded on CPU 1). isolcpus already keeps the scheduler off CPU 1; this is
-#    belt-and-suspenders and makes intent explicit.
+# 2) systemd: default every managed process to CPU 0 (soft affinity, so a service's own
+#    CPUAffinity=/taskset can still place omohaaded on the isolated core).
 mkdir -p /etc/systemd/system.conf.d
 cat > /etc/systemd/system.conf.d/10-mohaashield-cpu.conf <<'EOF'
 [Manager]
@@ -55,20 +56,17 @@ cat <<EOF
 ================================================================
 Config written. NOT active yet — a reboot applies kernel isolation.
 
-BEFORE you reboot, pin omohaaded to CPU 1 in your cron/screen launch by inserting
-'taskset -c 1' immediately before the omohaaded binary, e.g.:
-
-  screen -dmS mohaa taskset -c 1 /path/to/omohaaded +set com_target_game 0 +exec server_opm.cfg
-
-(If a watchdog script does the launch, put 'taskset -c 1' before omohaaded there.)
+Make sure omohaaded is pinned to CPU ${CPU}:
+  - systemd service: 'CPUAffinity=${CPU}' in the unit (install-mohaa-service.sh does this), or
+  - screen/cron launch: prefix the binary with 'taskset -c ${CPU}'.
 
 Then:  sudo reboot
 
 After reboot, verify:
-  cat /proc/cmdline                             # contains: isolcpus=1 ...
-  cat /sys/devices/system/cpu/isolated          # -> 1
-  taskset -cp \$(pgrep -x omohaaded | head -1)   # -> ... current affinity list: 1
-  ps -eo pid,psr,comm | awk '\$2==1'             # -> only omohaaded shows CPU 1
+  cat /proc/cmdline                             # contains: isolcpus=${CPU} ...
+  cat /sys/devices/system/cpu/isolated          # -> ${CPU}
+  taskset -cp \$(pgrep -x omohaaded | head -1)   # -> ... current affinity list: ${CPU}
+  ps -eo pid,psr,comm | awk '\$2==${CPU}'        # -> only omohaaded (+ idle per-CPU kthreads)
 
 Rollback if boot ever fails (via OVH KVM console / rescue):
   restore /etc/default/grub.mohaashield.bak.*  then  update-grub  then reboot
