@@ -1,12 +1,12 @@
-# MOHAAShield flight recorder config.
+# MOHAAShield flight recorder + attack-watch config.
 # Copy to /etc/mohaashield/flightrecorder.conf and set IFACE from Phase 0 recon.
-# Keep comments on their OWN lines (values are used verbatim).
+# Keep comments on their OWN lines (values are used verbatim by the recorder).
 
 # Public interface (see host/phase0/recon.sh output), e.g. ens3
 IFACE=ens3
 
-# MOHAA UDP port
-PORT=12203
+# Game UDP ports to record (space-separated). OpenMoHAA here uses 12203 and 12300.
+PORTS="12203 12300"
 
 # Bytes/packet captured: enough for IP+UDP + MOHAA OOB command + seq/qport
 SNAPLEN=128
@@ -18,3 +18,14 @@ OUTDIR=/var/lib/mohaashield/pcap
 # 32768 KB/file * 64 files = ~2 GB.
 RING_FILESIZE_KB=32768
 RING_FILES=64
+
+# --- attack-watch (auto-freeze) ---
+# Sensitive on purpose: a false CAPTURE trigger is fine, it only preserves pcap.
+# Sample period, seconds.
+WATCH_INTERVAL=2
+# Interface RX packets/sec above this preserves the ring (normal peak ~1200 pps here).
+WATCH_PPS_TRIGGER=4000
+# Any NIC drop increase (rx_dropped/missed/fifo) over a sample also triggers.
+WATCH_DROP_TRIGGER=1
+# Minimum seconds between auto-freezes, so one attack can't fill the disk.
+WATCH_COOLDOWN=300

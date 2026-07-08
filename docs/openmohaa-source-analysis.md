@@ -41,7 +41,7 @@ Legit OOB = 4-byte marker + **1 direction byte (`0x02`)** + command → command 
 `statusResponse` (~70× payload amplification; the outbound bucket caps this to ~10/s ≈
 ~80 kbps, so it is **not** an abusable amplifier).
 
-**Consequence for the confirmed attack.** The NFO attack shape
+**Consequence for the NFO-flagged shape (unverified).** That shape
 `ff ff ff ff "getstatus" 0a` has the command at `data[4]`, **no** direction byte, trailing
 newline. Parsed from `data[5]` it tokenizes to **`etstatus`** → the **unknown/bad
 connectionless** branch. So the historical flood **never reaches `SVC_Status`**, never hits
@@ -90,8 +90,9 @@ Therefore, decoded to real rates:
 
 Every **new/spoofed source IP** pays step 2 — an **O(16384) scan** — *before* the cheap
 global outbound gate runs. Under a spoofed-source flood this is per-packet CPU cost even
-though the response itself is cheaply suppressed. This is the mechanism behind the confirmed
-historical `getstatus` flood.
+though the response itself is cheaply suppressed. This is a plausible mechanism for a
+getstatus-style flood *if* the packets parse as `getstatus`; whether any real attack on this
+box does so is unverified pending a capture.
 
 ## Sequenced (in-game) packet path (`SV_PacketEvent`, `sv_main.c`)
 

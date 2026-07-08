@@ -1,0 +1,35 @@
+[Unit]
+Description=MOHAAShield attack-watch (auto-freeze pcap ring on a traffic spike)
+After=mohaashield-flightrecorder.service
+Wants=mohaashield-flightrecorder.service
+
+[Service]
+Type=exec
+ExecStart=/opt/mohaashield/attack-watch.sh
+Restart=on-failure
+RestartSec=5
+
+# Unprivileged: only reads /sys stats and runs freeze.sh (copies pcap it owns).
+User=mohaashield
+Group=mohaashield
+NoNewPrivileges=yes
+
+# Sandboxing / hardening.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mohaashield/incidents
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+# Resource caps so the watcher can never starve the game server.
+MemoryMax=64M
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

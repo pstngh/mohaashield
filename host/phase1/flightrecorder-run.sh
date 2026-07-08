@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # MOHAAShield flight recorder launcher (invoked by the systemd unit).
-# Always-on, bounded pcap ring of UDP 12203 traffic. Captures only; drops nothing.
+# Always-on, bounded pcap ring of the MOHAA UDP ports. Captures only; drops nothing.
 set -euo pipefail
 
 # Load config by SOURCING it (bash strips inline "# comments" correctly, unlike
@@ -9,7 +9,7 @@ CONF="${FLIGHTRECORDER_CONF:-/etc/mohaashield/flightrecorder.conf}"
 [ -r "$CONF" ] && . "$CONF"
 
 : "${IFACE:?set IFACE in /etc/mohaashield/flightrecorder.conf}"
-PORT="${PORT:-12203}"
+PORTS="${PORTS:-${PORT:-12203}}"          # space-separated; PORT kept for back-compat
 SNAPLEN="${SNAPLEN:-128}"
 OUTDIR="${OUTDIR:-/var/lib/mohaashield/pcap}"
 RING_FILESIZE_KB="${RING_FILESIZE_KB:-32768}"
@@ -17,13 +17,18 @@ RING_FILES="${RING_FILES:-64}"
 
 mkdir -p "$OUTDIR"
 
+# Build the BPF capture filter: "udp port A or udp port B ..."
+FILTER=""
+for _p in $PORTS; do FILTER="${FILTER:+$FILTER or }udp port ${_p}"; done
+: "${FILTER:=udp port 12203}"
+
 # -p : no promiscuous mode (we only want traffic addressed to this host -> needs only CAP_NET_RAW)
 # -f : kernel BPF capture filter (keeps the hot path cheap even under flood)
 # -b : ring buffer (rotate at filesize kB, keep RING_FILES files)
 exec /usr/bin/dumpcap \
   -i "$IFACE" -p \
   -s "$SNAPLEN" \
-  -f "udp port ${PORT}" \
+  -f "$FILTER" \
   -w "$OUTDIR/mohaa.pcapng" \
   -b filesize:"$RING_FILESIZE_KB" \
   -b files:"$RING_FILES"

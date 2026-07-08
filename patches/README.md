@@ -38,7 +38,7 @@ So legit OOB = marker + **direction byte `0x02`** + command at `data[5]` → it 
 `SVC_Status` and gets a 975-byte reply (~70× amplification, but the outbound bucket caps it
 to ~10/s ≈ ~80 kbps → non-abusable).
 
-The confirmed historical **attack** shape is different: `ff ff ff ff "getstatus" 0a` —
+The NFO-flagged (unverified) **attack** shape is different: `ff ff ff ff "getstatus" 0a` —
 command at `data[4]`, **no** direction byte, trailing newline. Fed through the same parser
 (which reads from `data[5]`) the token becomes **`etstatus`** → the **unknown/bad
 connectionless branch**. So the attack:

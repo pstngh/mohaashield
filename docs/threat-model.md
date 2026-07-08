@@ -8,8 +8,11 @@ facts. See `openmohaa-source-analysis.md` for the code behind each claim.
 
 1. **Algorithmic-complexity DoS in `SVC_BucketForAddress`.** Every new/spoofed source IP
    triggers an **O(16384) scan from index 0**, run *before* the cheap global outbound gate.
-   Affects `getstatus`/`getinfo`/`getchallenge`/`rcon`. **Directly matches the confirmed
-   historical `getstatus` flood** (`FF FF FF FF "getstatus" \n`, 14-byte payload).
+   Affects `getstatus`/`getinfo`/`getchallenge`/`rcon`. Note this only bites packets that
+   *parse* as those commands; the NFO-flagged shape (`FF FF FF FF "getstatus" \n`, no
+   direction byte) misparses to the unknown branch and skips this scan — see the wire-layout
+   note in `openmohaa-source-analysis.md`. **Whether any real attack on this box hits this
+   path is unverified** until a capture shows it.
 2. **`connect` is un-throttled and is the heaviest pre-auth path** (Huffman decode +
    userinfo parsing + 2048-entry challenge scan). The likely pivot target once `getstatus`
    is gated.

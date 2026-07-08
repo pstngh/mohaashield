@@ -53,7 +53,11 @@ runs a self-compiled, customized `omohaaded` fork). Start with `patches/README.m
 - `patches/phase3-getstatus-shadow-guard.md` — shadow getstatus gate + allocator fix (zero
   drops by default), applied after Phase 2 data review.
 
-## Confirmed historical attack
+## The getstatus signature (unverified NFO-era prior)
 
-`FF FF FF FF "getstatus" \n` (14-byte connectionless payload). Newer attacks may use other
-vectors — hence observe-first. See `docs/threat-model.md`.
+An NFO mitigation alert on the *old* host flagged `FF FF FF FF "getstatus" \n` (14-byte
+connectionless payload) as a "getstatus flood." That is a second-hand, automated
+classification from behind NFO's scrubbing — **not independently verified as an attack**, and
+the same byte shape is also sent by legitimate server-list crawlers. This OVH box sits behind
+different upstream mitigation (VAC), so the real vector must be established from captures on
+*this* box. Treated as a hypothesis, not a fact. See `docs/threat-model.md`.

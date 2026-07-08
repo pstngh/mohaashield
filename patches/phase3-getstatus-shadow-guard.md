@@ -2,8 +2,9 @@
 
 > **DESIGN UPDATE (live capture 2026-07-08).** A real `getstatus` was captured and confirms
 > legit OOB carries a direction byte (`ff ff ff ff 02 "getstatus"`, command at `data[5]`).
-> The confirmed **attack** shape (`ff ff ff ff "getstatus" 0a`, command at `data[4]`) misparses
-> to the **unknown/bad connectionless branch** — so it never reaches `SVC_Status`. A
+> The NFO-flagged **attack** shape (`ff ff ff ff "getstatus" 0a`, command at `data[4]`; still
+> unverified on this box) misparses to the **unknown/bad connectionless branch** — so it never
+> reaches `SVC_Status`. A
 > `SVC_Status`-only gate (3a below) would therefore **miss the real attack**. The recommended
 > primary guard is now **(3a′) a global OOB gate at the top of `SV_ConnectionlessPacket`,
 > before tokenize/dispatch** — it protects the single-threaded server loop against *any*

@@ -23,24 +23,28 @@ install -d -m 0755 /opt/mohaashield /etc/mohaashield
 
 echo "==> files"
 install -m 0755 "$SRC/flightrecorder-run.sh" /opt/mohaashield/flightrecorder-run.sh
+install -m 0755 "$SRC/attack-watch.sh"       /opt/mohaashield/attack-watch.sh
 install -m 0755 "$SRC/freeze.sh"             /opt/mohaashield/freeze.sh
 if [ ! -f /etc/mohaashield/flightrecorder.conf ]; then
   install -m 0644 "$SRC/flightrecorder.conf.example" /etc/mohaashield/flightrecorder.conf
-  echo "    created /etc/mohaashield/flightrecorder.conf  (EDIT: set IFACE)"
+  echo "    created /etc/mohaashield/flightrecorder.conf  (EDIT: set IFACE + PORTS)"
 else
-  echo "    kept existing /etc/mohaashield/flightrecorder.conf"
+  echo "    kept existing /etc/mohaashield/flightrecorder.conf  (check PORTS covers 12203 12300)"
 fi
 install -m 0644 "$SRC/mohaashield-flightrecorder.service" /etc/systemd/system/mohaashield-flightrecorder.service
+install -m 0644 "$SRC/mohaashield-attack-watch.service"   /etc/systemd/system/mohaashield-attack-watch.service
 
 systemctl daemon-reload
 cat <<EOF
 
 Installed. Next:
-  1) Edit /etc/mohaashield/flightrecorder.conf  -> set IFACE (from Phase 0 recon)
-  2) sudo systemctl enable --now mohaashield-flightrecorder
-  3) systemctl status mohaashield-flightrecorder
+  1) Edit /etc/mohaashield/flightrecorder.conf  -> set IFACE and PORTS (e.g. "12203 12300")
+  2) sudo systemctl enable --now mohaashield-flightrecorder mohaashield-attack-watch
+  3) systemctl status mohaashield-flightrecorder mohaashield-attack-watch
   4) ls -lh /var/lib/mohaashield/pcap   (ring files should appear/rotate)
 
-During/after an attack, preserve the window:
+The attack-watch service auto-preserves the pcap window on a traffic spike.
+Manually preserve any time with:
   sudo /opt/mohaashield/freeze.sh <tag>
+Frozen windows land in /var/lib/mohaashield/incidents/
 EOF
