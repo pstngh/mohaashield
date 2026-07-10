@@ -26,18 +26,33 @@ fi
 
 echo "== per-core CPU over 3s  (soft% = softirq = kernel network packet processing) =="
 printf '  %-6s %6s %6s %7s %6s\n' core usr sys soft idle
+GSOFT=0; GIDLE=100
 while read -r c u s so id t; do
   dt=$(( t - ${T[$c]:-0} )); [ "$dt" -le 0 ] && dt=1
-  mark=""; [ "cpu${psr}" = "$c" ] && mark="   <- game"
+  cso=$(( (so-${SO[$c]:-0})*100/dt )); cid=$(( (id-${ID[$c]:-0})*100/dt ))
+  mark=""; if [ "cpu${psr}" = "$c" ]; then mark="   <- game"; GSOFT=$cso; GIDLE=$cid; fi
   printf '  %-6s %5s%% %5s%% %6s%% %5s%%%s\n' "$c" \
-    $(( (u-${U[$c]:-0})*100/dt )) $(( (s-${S[$c]:-0})*100/dt )) \
-    $(( (so-${SO[$c]:-0})*100/dt )) $(( (id-${ID[$c]:-0})*100/dt )) "$mark"
+    $(( (u-${U[$c]:-0})*100/dt )) $(( (s-${S[$c]:-0})*100/dt )) "$cso" "$cid" "$mark"
 done < <(core_snap)
 
+DROP=$(( (d1 - d0) / 3 )); GMS=$(( (g1-g0)*1000/CLK/3 ))
 echo "== nft OOB drop rate =="
-echo "  ~$(( (d1 - d0) / 3 )) OOB packets/sec dropped right now"
+echo "  ~${DROP} OOB packets/sec dropped right now"
 
 echo
-echo "read: game_cpu LOW but soft% HIGH on the game's core (CPU ${psr}) => the flood's softirq is"
-echo "      starving the single-threaded game on a shared core. That's the jitter — not the game"
-echo "      being busy. Fix: get the game its own core, and/or drop the flood before softirq."
+# Data-driven verdict (not a fixed message) so it can't contradict the numbers above.
+if [ "$DROP" -lt 200 ] && [ "$GSOFT" -lt 15 ]; then
+  echo "VERDICT: no active flood this instant (dropping ~${DROP} pps, game-core softirq ${GSOFT}%)."
+  echo "  Box is calm, game (${GMS} ms/sec) healthy. The flood is intermittent — re-run DURING a"
+  echo "  jitter episode (or when the drop rate is high) to catch the mechanism live."
+elif [ "$GMS" -ge 800 ]; then
+  echo "VERDICT: the game itself is CPU-bound (${GMS} ms/sec ~ a full core) — it's chewing on load"
+  echo "  that reached it, not just being interrupted. Look at what's getting THROUGH the drop rules."
+elif [ "$GSOFT" -ge 15 ]; then
+  echo "VERDICT: flood active and its softirq (${GSOFT}% on the game's core CPU ${psr}) is starving the"
+  echo "  single-threaded game (${GMS} ms/sec, core ${GIDLE}% idle) — that's the jitter. If not already"
+  echo "  pinned: sudo bash host/cpu-isolation/pin-runtime.sh   (then re-run; game-core soft% should fall)."
+else
+  echo "VERDICT: mixed signal — drop ~${DROP} pps, game-core soft ${GSOFT}%, game ${GMS} ms/sec."
+  echo "  Re-run during a clear jitter episode for a cleaner read."
+fi
