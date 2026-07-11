@@ -4,15 +4,20 @@
 # players. Needs a non-empty `rconpassword` set in your server cfg. Pass the password via the
 # RCON_PW env var (preferred — keeps it off your shell history) or --pw.
 #
+# NOTE: this MOHAA build's connectionless packets are `FF FF FF FF` + one direction byte (0x02)
+# + command (the command is read at data[5]) — NOT plain Quake3. We send that format. If your
+# build differs, override with --dirbyte N (or --dirbyte -1 for no byte / standard Q3).
+#
 #   RCON_PW='secret' bash host/rcon.sh status              # list every client: slot, ping, IP
 #   RCON_PW='secret' bash host/rcon.sh "clientkick 12"     # kick slot 12
 #   RCON_PW='secret' bash host/rcon.sh --host 1.2.3.4 status
 set -uo pipefail
-HOST=127.0.0.1; PORT=12203; PW="${RCON_PW:-}"
+HOST=127.0.0.1; PORT=12203; PW="${RCON_PW:-}"; DIRBYTE=2
 while [ $# -gt 0 ]; do case "$1" in
-  --pw)   PW="${2:?}";   shift ;;
-  --host) HOST="${2:?}"; shift ;;
-  --port) PORT="${2:?}"; shift ;;
+  --pw)      PW="${2:?}";      shift ;;
+  --host)    HOST="${2:?}";    shift ;;
+  --port)    PORT="${2:?}";    shift ;;
+  --dirbyte) DIRBYTE="${2:?}"; shift ;;
   --) shift; break ;;
   -*) echo "unknown option: $1" >&2; exit 1 ;;
   *) break ;;
@@ -22,19 +27,24 @@ CMD="$*"
 [ -n "$CMD" ] || { echo "usage: RCON_PW='...' bash $0 [--host H --port P] <rcon command>" >&2; exit 1; }
 command -v python3 >/dev/null 2>&1 || { echo "need python3 (sudo apt install -y python3)" >&2; exit 1; }
 
-python3 - "$HOST" "$PORT" "$PW" "$CMD" <<'PY'
-import socket, sys
-host, port, pw, cmd = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+python3 - "$HOST" "$PORT" "$PW" "$CMD" "$DIRBYTE" <<'PY'
+import socket, sys, re
+host, port, pw, cmd, dirb = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4], int(sys.argv[5])
+prefix = b'\xff\xff\xff\xff' + (bytes([dirb]) if dirb >= 0 else b'')
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.settimeout(3)
-s.sendto(b'\xff\xff\xff\xff' + b'rcon ' + pw.encode() + b' ' + cmd.encode(), (host, port))
+s.sendto(prefix + b'rcon ' + pw.encode() + b' ' + cmd.encode(), (host, port))
 data = b''
 try:
     while True:
         data += s.recv(65536)
 except socket.timeout:
     pass
-out = data.replace(b'\xff\xff\xff\xffprint\n', b'').replace(b'\xff\xff\xff\xff', b'')
-out = out.decode('latin-1', 'replace')
-print(out if out.strip() else
-      '(no reply — wrong password, rconpassword not set, or the command produced no output)')
+if not data:
+    print('(no reply — wrong password, rconpassword not set, server not bound to this host,\n'
+          ' or wrong --dirbyte. Try: --host <public-ip>, or --dirbyte -1 for standard Quake3.)')
+else:
+    # strip each datagram's connectionless header: FFFFFFFF [opt dir byte] "print\n"
+    out = re.sub(rb'\xff\xff\xff\xff[\x00-\xff]?print\n', b'', data)
+    out = out.replace(b'\xff\xff\xff\xff', b'').decode('latin-1', 'replace')
+    print(out if out.strip() else '(empty reply)')
 PY
